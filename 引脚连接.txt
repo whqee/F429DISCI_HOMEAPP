@@ -1,0 +1,24 @@
+（F429）
+
+DS1302 RTC模块：
+VCC -- VCC 3.3V
+GND -- GND
+CLK -- PF7   （与屏相反的面的左上角）
+DAT -- PF9   （同左上角）
+RST -- PF6    （同左上角）
+
+人体红外模块：
+VCC -- PE2    （反面的右上角数下去）
+OUT -- PE3    （同）
+GND -- GND
+
+光敏模块：
+VCC -- PE4 
+DO -- PE5
+GND -- GND
+
+OLED模块：
+SCL -- PA8  （反面右下角）
+SDA -- PC9   （隔壁）
+VCC -- VCC 3.3V
+GND -- GND

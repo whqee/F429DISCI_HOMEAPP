@@ -1,0 +1,476 @@
+/* Includes ------------------------------------------------------------------*/
+#include "main.h"
+#include "i2c.h"
+#include "spi.h"
+#include "usart.h"
+#include "gpio.h"
+
+/* Private includes ----------------------------------------------------------*/
+/* USER CODE BEGIN Includes */
+#include "rtc.h"
+#include "oled.h"
+/* USER CODE END Includes */
+
+/* Private typedef -----------------------------------------------------------*/
+/* USER CODE BEGIN PTD */
+
+/* USER CODE END PTD */
+
+/* Private define ------------------------------------------------------------*/
+/* USER CODE BEGIN PD */
+
+/* USER CODE END PD */
+
+/* Private macro -------------------------------------------------------------*/
+/* USER CODE BEGIN PM */
+
+/* USER CODE END PM */
+
+/* Private variables ---------------------------------------------------------*/
+
+/* USER CODE BEGIN PV */
+
+
+/* USER CODE END PV */
+
+/* Private function prototypes -----------------------------------------------*/
+void SystemClock_Config(void);
+/* USER CODE BEGIN PFP */
+
+/* USER CODE END PFP */
+
+/* Private user code ---------------------------------------------------------*/
+/* USER CODE BEGIN 0 */
+void display_hour(struct rtc_time *time)
+{
+  char hour[2];
+  hour[0] = time->hour / 10 + 48;
+  hour[1] = time->hour % 10 + 48;
+  OLED_ShowStr(3*16,0,hour,2);	//8*16字符
+}
+void display_hour_clear()
+{
+  OLED_ShowStr(3*16,0,"  ",2);
+}
+void display_min(struct rtc_time *time)
+{
+  char min[2];
+  min[0] = time->min / 10 + 48;
+  min[1] = time->min % 10 + 48;
+  OLED_ShowStr(4*16+8,0,min,2);	//8*16字符
+}
+void display_min_clear()
+{
+  OLED_ShowStr(4*16+8,0,"  ",2);
+}
+void display_sec(struct rtc_time *time)
+{
+  char sec[2];
+  sec[0] = time->sec / 10 + 48;
+  sec[1] = time->sec % 10 + 48;
+  OLED_ShowStr(6*16,0,sec,2);	//8*16字符
+}
+void display_sec_clear()
+{
+  OLED_ShowStr(6*16,0,"  ",2);
+}
+
+
+void oled_thread()
+{
+  for(int i=0;i<3;i++)
+  {
+    OLED_ShowCN(i*16,0,i+2);//测试显示中文
+  }
+  OLED_ShowStr(4*16,0,":",2);	//8*16字符
+  OLED_ShowStr(5*16+8,0,":",2);	//8*16字符
+
+  struct rtc_time time;
+  rtc->read_time(&time);
+  printf("s_time: %d:%d:%d\r\n", time.hour,time.min,time.sec);
+  display_hour(&time);
+  display_min(&time);
+  display_sec(&time);
+}
+
+}
+/* USER CODE END 0 */
+
+/**
+  * @brief  The application entry point.
+  * @retval int
+  */
+int main(void)
+{
+  /* USER CODE BEGIN 1 */
+  uint32_t index = 0;
+  /* USER CODE END 1 */
+  
+
+  /* MCU Configuration--------------------------------------------------------*/
+
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  HAL_Init();
+
+  /* USER CODE BEGIN Init */
+
+  /* USER CODE END Init */
+
+  /* Configure the system clock */
+  SystemClock_Config();
+
+  /* USER CODE BEGIN SysInit */
+
+  /* USER CODE END SysInit */
+
+  /* Initialize all configured peripherals */
+  MX_GPIO_Init();
+  MX_SPI5_Init();
+  MX_USART1_UART_Init();
+  MX_LTDC_Init();
+  MX_DMA2D_Init();
+  MX_FMC_Init();
+  MX_I2C3_Init();
+  /* USER CODE BEGIN 2 */
+  HAL_Delay(500);
+
+  body_detection_power_on();
+  body_detect_it();
+
+  light_detection_power_on();
+  light_detect_it();
+
+  struct rtc_time init_time = {
+    .hour = 22,
+    .min = 58,
+    .sec = 30,
+  };
+  rtc->set_time(&init_time);
+
+  if (OLED_Init() < 0)
+        printf("OLED Init error.\r\n");
+  OLED_Fill(0x00);//全屏灭
+  // struct rtc_time time;
+  /* USER CODE END 2 */
+
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
+while (1)
+
+  {
+
+    // schedule_thread();
+
+    oled_thread();
+
+    int status;
+
+    struct rtc_time time;
+
+
+
+    if (body_detect() && light_detect()) {
+
+
+
+      status = rtc->read_time(&time);
+
+      if(status == 0) {
+
+        printf("time: %d:%d:%d\r\n", time.hour,time.min,time.sec);
+
+        if (time.hour > 6 && time.hour < 23) {
+
+          led_on();
+
+        } else {
+
+          led_off();
+
+        }
+
+
+
+      } else {
+
+          led_on();
+
+      }
+
+
+
+    } else {
+
+      led_off();
+
+    }
+
+    HAL_Delay(1000);
+
+    /* USER CODE END WHILE */
+
+
+
+    /* USER CODE BEGIN 3 */
+
+  }
+  /* USER CODE END 3 */
+}
+
+/**
+  * @brief System Clock Configuration
+  * @retval None
+  */
+void SystemClock_Config(void)
+{
+  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
+
+  /** Configure the main internal regulator output voltage 
+  */
+  __HAL_RCC_PWR_CLK_ENABLE();
+  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
+  /** Initializes the CPU, AHB and APB busses clocks 
+  */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
+  RCC_OscInitStruct.PLL.PLLM = 8;
+  RCC_OscInitStruct.PLL.PLLN = 180;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+  RCC_OscInitStruct.PLL.PLLQ = 7;
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Activate the Over-Drive mode 
+  */
+  if (HAL_PWREx_EnableOverDrive() != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Initializes the CPU, AHB and APB busses clocks 
+  */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
+
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_5) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_LTDC;
+  PeriphClkInitStruct.PLLSAI.PLLSAIN = 50;
+  PeriphClkInitStruct.PLLSAI.PLLSAIR = 2;
+  PeriphClkInitStruct.PLLSAIDivR = RCC_PLLSAIDIVR_2;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+
+/* USER CODE BEGIN 4 */
+/* USER CODE END 4 */
+
+/**
+  * @brief  This function is executed in case of error occurrence.
+  * @retval None
+  */
+void Error_Handler(void)
+{
+  /* USER CODE BEGIN Error_Handler_Debug */
+  /* User can add his own implementation to report the HAL error return state */
+
+  /* USER CODE END Error_Handler_Debug */
+}
+
+#ifdef  USE_FULL_ASSERT
+/**
+  * @brief  Reports the name of the source file and the source line number
+  *         where the assert_param error has occurred.
+  * @param  file: pointer to the source file name
+  * @param  line: assert_param error line source number
+  * @retval None
+  */
+void assert_failed(uint8_t *file, uint32_t line)
+{ 
+  /* USER CODE BEGIN 6 */
+  /* User can add his own implementation to report the file name and line number,
+     tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+  /* USER CODE END 6 */
+}
+#endif /* USE_FULL_ASSERT */
+
+/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
+
+
+
+/******** ******   rtc.h  <whqee@qq.com>    *******************************************************/
+#ifndef __RTC_H
+#define __RTC_H
+
+#define bcd2bin(x)	(((x) & 0x0f) + ((x) >> 4) * 10)
+#define bin2bcd(x)	((((x) / 10) << 4) + (x) % 10)
+
+#define rtc_read_time(time) rtc->read_time(time)
+#define rtc_set_time(time) rtc->set_time(time)
+
+struct rtc_time {
+    int sec;
+    int min;
+    int hour;
+    int date; // date of month
+    int mon;
+    int day;  // day of week
+    int year;
+};
+struct rtc_class_ops {
+    int (*read_time)(struct rtc_time *time);
+    int (*set_time)(struct rtc_time *time);
+};
+
+#define EXPORT(rtc_ops) const struct rtc_class_ops * rtc = rtc_ops
+extern const struct rtc_class_ops *rtc;
+
+#endif // !__RTC_H
+/************************   end of file *************************/
+
+
+/*****************************  rtc-ds1302.c  <whqee@qq.com> **********************************************/
+#include "rtc.h"
+#include "spi.h"
+#include "gpio.h"
+ 
+#define spi hspi5
+
+
+
+#define	RTC_CMD_READ	0x81		/* Read command */
+#define	RTC_CMD_WRITE	0x80		/* Write command */
+
+#define	RTC_CMD_WRITE_ENABLE	0x00		/* Write enable */
+#define	RTC_CMD_WRITE_DISABLE	0x80		/* Write disable */
+
+#define RTC_ADDR_RAM0	0x20		/* Address of RAM0 */
+#define RTC_ADDR_TCR	0x08		/* Address of trickle charge register */
+#define RTC_CLCK_BURST	0x1F		/* Address of clock burst */
+#define	RTC_CLCK_LEN	0x08		/* Size of clock burst */
+#define	RTC_ADDR_CTRL	0x07		/* Address of control register */
+#define	RTC_ADDR_YEAR	0x06		/* Address of year register */
+#define	RTC_ADDR_DAY	0x05		/* Address of day of week register */
+#define	RTC_ADDR_MON	0x04		/* Address of month register */
+#define	RTC_ADDR_DATE	0x03		/* Address of day of month register */
+#define	RTC_ADDR_HOUR	0x02		/* Address of hour register */
+#define	RTC_ADDR_MIN	0x01		/* Address of minute register */
+#define	RTC_ADDR_SEC	0x00		/* Address of second register */
+
+static int inline __ds1302_write(unsigned char *buf, int count)
+{
+    int status;
+
+    HAL_GPIO_WritePin(DS1302_CS_GPIO_Port, DS1302_CS_Pin, GPIO_PIN_SET);
+
+    status = HAL_SPI_Transmit(&spi, buf, count, 100);
+    
+    HAL_GPIO_WritePin(DS1302_CS_GPIO_Port, DS1302_CS_Pin, GPIO_PIN_RESET);
+
+	if (status)
+		return status;
+    
+    return 0;
+}
+static int inline __ds1302_write_then_read(unsigned char addr,unsigned char *buf, int count)
+{
+    int status;
+
+    HAL_GPIO_WritePin(DS1302_CS_GPIO_Port, DS1302_CS_Pin, GPIO_PIN_SET);
+
+    HAL_SPI_Transmit(&spi, &addr, sizeof(addr), 10);
+    status = HAL_SPI_Receive(&spi, buf, count,10);
+
+    HAL_GPIO_WritePin(DS1302_CS_GPIO_Port, DS1302_CS_Pin, GPIO_PIN_RESET);
+
+	if (status)
+		return status;
+    
+    return 0;
+}
+
+
+static int ds1302_rtc_set_time(struct rtc_time *time)
+{
+	unsigned char	buf[1 + RTC_CLCK_LEN];
+	unsigned char	*bp;
+	int		status;
+
+	/* Enable writing */
+	bp = buf;
+	*bp++ = RTC_ADDR_CTRL << 1 | RTC_CMD_WRITE;
+	*bp++ = RTC_CMD_WRITE_ENABLE;
+
+    status = __ds1302_write(buf, 2);
+	if (status)
+		return status;
+
+	/* Write registers starting at the first time/date address. */
+	bp = buf;
+	*bp++ = RTC_CLCK_BURST << 1 | RTC_CMD_WRITE;
+
+	*bp++ = bin2bcd(time->sec);
+	*bp++ = bin2bcd(time->min);
+	*bp++ = bin2bcd(time->hour);
+	*bp++ = bin2bcd(time->date);
+	*bp++ = bin2bcd(time->mon + 1);
+	*bp++ = time->day + 1;
+	*bp++ = bin2bcd(time->year % 100);
+	*bp++ = RTC_CMD_WRITE_DISABLE;
+
+    HAL_GPIO_WritePin(DS1302_CS_GPIO_Port, DS1302_CS_Pin, GPIO_PIN_SET);
+	status = HAL_SPI_Transmit(&spi, buf, sizeof(buf), 1000);
+    HAL_GPIO_WritePin(DS1302_CS_GPIO_Port, DS1302_CS_Pin, GPIO_PIN_RESET);
+
+	return 0;
+}
+
+static int ds1302_rtc_get_time(struct rtc_time *time)
+{
+	unsigned char	addr = RTC_CLCK_BURST << 1 | RTC_CMD_READ;
+	unsigned char	buf[RTC_CLCK_LEN - 1];
+	int		status;
+
+	/* Use write-then-read to get all the date/time registers
+	 * since dma from stack is nonportable
+	 */
+    
+    status = __ds1302_write_then_read(addr, buf, sizeof(buf));
+	if (status)
+		return status;
+
+	/* Decode the registers */
+	time->sec = bcd2bin(buf[RTC_ADDR_SEC]);
+	time->min = bcd2bin(buf[RTC_ADDR_MIN]);
+	time->hour = bcd2bin(buf[RTC_ADDR_HOUR]);
+	time->day = buf[RTC_ADDR_DAY] - 1;
+	time->date = bcd2bin(buf[RTC_ADDR_DATE]);
+	time->mon = bcd2bin(buf[RTC_ADDR_MON]) - 1;
+	time->year = bcd2bin(buf[RTC_ADDR_YEAR]) + 2000;
+
+	return 0;
+}
+
+static const struct rtc_class_ops ds1302_ops = {
+    .read_time = ds1302_rtc_get_time,
+    .set_time = ds1302_rtc_set_time,
+};
+EXPORT(&ds1302_ops);
+
+/**************************** end of file  ********************************************/
+
+
+

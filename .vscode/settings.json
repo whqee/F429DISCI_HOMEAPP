@@ -1,0 +1,16 @@
+{
+    "files.associations": {
+        "*.dts": "c",
+        "spi.h": "c",
+        "usart.h": "c",
+        "gpio.h": "c",
+        "ltdc.h": "c",
+        "i2c.h": "c",
+        "main.h": "c",
+        "stm32f4xx_hal.h": "c",
+        "stm32f4xx_hal_conf.h": "c",
+        "rtc.h": "c",
+        "stm32f4xx_hal_uart.h": "c",
+        "tim.h": "c"
+    }
+}
