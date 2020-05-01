@@ -11,3 +11,20 @@ ESP8266_Serial AT+CIFSR   //print ip
 ESP8266_Serial AT+SAVETRANSLINK
 ESP8266_Serial AT+CIPMODE?   =0缺省模式 =1透传模式
 ESP8266_Serial AT+CIOBAUD=<rate>
+
+AT+CWSAP_DEF="TCP_Server","12345678",5,4   设置AP名称、密码
+（AT+ CWSAP= <ssid>,<pwd>,<chl>, <ecn>
+
+     功能：配置AP参数（指令只有在AP模式开启后有效）
+
+                ssid:接入点名称
+
+               pwd:密码
+
+              chl:通道号
+
+              ecn:加密方式:（0-OPEN， 1-WEP， 2-WPA_PSK， 3-WPA2_PSK， 4-WPA_WPA2_PSK）
+）
+AT+CIFSR        //查看ip
+AT+CIPMUX=1   //开启多连接
+AT+CIPSERVER=1 //开启服务器

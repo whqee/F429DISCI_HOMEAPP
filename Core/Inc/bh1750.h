@@ -30,6 +30,8 @@
 #define BH1750_CHANGE_INT_TIME_H_BIT	0x40
 #define BH1750_CHANGE_INT_TIME_L_BIT	0x60
 
+#define get_illuminance bh1750_read_lx
+
 int bh1750_init();
 int bh1750_read(unsigned char *buf);
 int bh1750_read_lx(float *lx);

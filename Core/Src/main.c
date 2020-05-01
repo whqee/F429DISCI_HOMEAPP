@@ -45,68 +45,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#include "stdio.h"
-#include "stdlib.h"
-
-#ifdef __GNUC__
-#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
-#else
-#define PUTCHAR_PROTOTYPE int fputc(int ch, FILE *f)
-#endif
-
-#define USARTx huart1
-
-PUTCHAR_PROTOTYPE
-{
-    HAL_UART_Transmit(&USARTx , (uint8_t *)&ch, 1 , 0xffff);
-
-//    while ((USART1->SR & 0X40) == 0); //寄存器操作,循环发发送,发完为止
-//    USART1->DR = (uint8_t) ch;
-    return ch;
-}
-
-int _write(int fd, char *ptr, int len);
-void print_float(float value);
-
-int _write(int fd, char *ptr, int len) 
-{ 
-    int i = 0; 
-    /*
-     * write "len" of char from "ptr" to file id "fd"
-     * Return number of char written.
-     *
-    * Only work for STDOUT, STDIN, and STDERR
-     */ 
-    if (fd > 2) { return -1; } 
-    while (*ptr && (i < len)) 
-    { 
-    HAL_UART_Transmit(&USARTx,(uint8_t *)ptr,sizeof(*ptr),10);
-    if (*ptr == '\n') 
-    { 
-        HAL_UART_Transmit(&USARTx,(uint8_t*)"\r",2,10);
-    } 
-    i++; 
-    ptr++; 
-    } 
-    return i; 
-}
-
-void print_float(float value)
-{
-
-  int tmp,tmp1,tmp2,tmp3;
-
-  tmp = (int)value;
-
-  tmp1=(int)((value-tmp)*10)%10;
-
-  tmp2=(int)((value-tmp)*100)%10;
-
-  tmp3=(int)((value-tmp)*1000)%10;
-
-  printf("%d.%d%d%d\n", tmp,tmp1,tmp2,tmp3);
-
-}
+#include "print.h"
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -286,6 +225,8 @@ void memset(char *s, char c, int size)
   }
 }
 
+
+
 /* USER CODE END 0 */
 
 /**
@@ -336,34 +277,42 @@ int main(void)
 	BSP_LCD_Clear(LCD_COLOR_WHITE);
   BSP_LED_On(LED3);
   BSP_LCD_SetTextColor(LCD_COLOR_DARKBLUE);
-  BSP_LCD_DisplayStringAtLine(1,(uint8_t *)"start...");
+  BSP_LCD_DisplayStringAtLine(0,(uint8_t *)"starting...");
   HAL_Delay(500);
 
   body_detection_power_on();
   body_detect_it();
 
-  light_detection_power_on();
-  light_detect_it();
+  // light_detection_power_on();   
+  // light_detect_it();
+  /* In this proj, I changed it into roomlight control-func */
+  #define light_on light_detection_power_on
+  #define light_off light_detection_shutdown
+  #define light_check() \
+  HAL_GPIO_ReadPin(Sensor_Power2_GPIO_Port, Sensor_Power2_Pin)
 
   struct rtc_time init_time = {
     .hour = 22,
     .min = 58,
     .sec = 30,
   };
-  rtc->set_time(&init_time);
+  // rtc->set_time(&init_time);
 
-  if (bh1750_init() != HAL_OK)  printf("bh1750 init error.\r\n");
-  if (OLED_Init() < 0)  printf("OLED Init error.\r\n");
-  OLED_Fill(0x00);//全屏灭
-  OLED_Fill(0xFF);//全屏灭
+  if (bh1750_init() != HAL_OK && bh1750_init() != HAL_OK)  printf("bh1750 init error.\r\n");
+  if (OLED_Init() < 0 && OLED_Init() < 0)  printf("OLED Init error.\r\n");
+  // OLED_Fill(0x00);//全屏灭
+  // OLED_Fill(0xFF);//全屏灭
 
-  // debug for usart esp8266
+  /* debug for usart esp8266 */
   char buff[128];
   char *p = buff;
   // esp8266
-  if(HAL_UART_Transmit(&huart5, "AT+CIPSTART=\"TCP\",\"192.168.10.1\",10000\r\n", 10, 100))
+  // if(HAL_UART_Transmit(&huart5, "AT+CIPSTART=\"TCP\",\"192.168.10.1\",10000\r\n", 10, 100))
+  if(HAL_UART_Transmit(&huart5, "AT+CWMODE?\r\n", 10, 100))
     printf("uart5 send error.\r\n");
   HAL_Delay(1);
+  if(HAL_UART_Transmit(&huart5, "AT+CWMODE?\r\n", 10, 100))
+    printf("uart5 send error.\r\n");
   HAL_UART_Receive(&huart5, buff, sizeof(buff), 1000);
   printf("%s\r\n", buff);
   // while (p < (buff+1))
@@ -373,12 +322,16 @@ int main(void)
   // }
   // p = buff;
 
+  /*  end debug for esp8266 */
+
   // debug for dht11
   DHT11_Data_TypeDef DHT11_Data = {};
   
 
 
-
+  BSP_LCD_DisplayStringAtLine(0,(uint8_t *)"...           ");
+  if(HAL_UART_Transmit(&huart5, "AT+CWMODE?\r\n", 10, 100))
+    printf("uart5 send error.\r\n");
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -409,25 +362,32 @@ int main(void)
     //   led_off();
     // }
     // HAL_Delay(1000);
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    
 
+    char lcd_buf[14];
     // bh1750
     float lx;
-    if (bh1750_read_lx(&lx) != HAL_OK)  printf("bh1750 read failed.\r\n");else
-    print_float(lx);
-
-
-
+    if (get_illuminance(&lx) != HAL_OK) {
+      printf("bh1750 read failed.\r\n");
+      BSP_LCD_DisplayStringAtLine(0,"lux: error");
+    }
+    else {
+      printf("光照度 ");
+      print_float(lx);
+      memset(lcd_buf, 0, sizeof(lcd_buf));
+      sprintf(lcd_buf, "lux: %d.%d%d", (int)lx, (int)((lx - (int)lx)*10), (int)((((lx - (int)lx)*10) - (int)((lx - (int)lx)*10))*10));
+      BSP_LCD_DisplayStringAtLine(0,(uint8_t *)lcd_buf);
+    }
     /*调用Read_DHT11读取温湿度，若成功则输出该信息*/
     if( Read_DHT11(&DHT11_Data)==SUCCESS)
     {
       printf("\r\n读取DHT11成功!\r\n\r\n湿度为%d.%d ％RH ，温度为 %d.%d℃ \r\n",\
       DHT11_Data.humi_int, DHT11_Data.humi_deci, DHT11_Data.temp_int, DHT11_Data.temp_deci);
       //printf("\r\n 湿度:%d,温度:%d \r\n" ,DHT11_Data.humi_int,DHT11_Data.temp_int);
-      char lcd_buf[14];
+      
       memset(lcd_buf, 0, sizeof(lcd_buf));
       sprintf(lcd_buf, "Temp: %d.%dC",DHT11_Data.temp_int, DHT11_Data.temp_deci);
       BSP_LCD_DisplayStringAtLine(1,(uint8_t *)lcd_buf);
@@ -438,10 +398,23 @@ int main(void)
     else
     {
       printf("Read DHT11 ERROR!\r\n");
+      // BSP_LCD_DisplayStringAtLine(1,"Temp: null");
+      // BSP_LCD_DisplayStringAtLine(2,"Humi: null");
     }
 
-    HAL_Delay(5000);
+    HAL_Delay(6000);
+    // if(HAL_UART_Transmit(&huart5, "AT+CWMODE?\r\n", 10, 100))
+    //   printf("uart5 send error.\r\n");
+    // memset(buff, 0, sizeof(buff));
+    // HAL_UART_Receive(&huart5, buff, sizeof(buff), 1000);
+    // printf("%s\r\n", buff);
 
+    if (body_detect()) {
+      light_on();
+    }
+    else {
+      light_off();
+    }
   }
   /* USER CODE END 3 */
 }
