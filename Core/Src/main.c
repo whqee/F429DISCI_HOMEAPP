@@ -225,7 +225,23 @@ void memset(char *s, char c, int size)
   }
 }
 
-
+int strstr(char * haystack, char * needle){
+    if (*needle == 0) return 0;
+    if (*haystack == 0) return -1;
+    char * head = haystack;
+    int offset;
+    while (*haystack) {
+        offset = 0;
+        while (1) {
+            if (needle[offset] == 0) return haystack - head;
+            if (haystack[offset] == 0) return -1;
+            if (haystack[offset] != needle[offset]) break;
+            offset++;
+        }
+        haystack++;
+    }
+    return -1;
+}
 
 /* USER CODE END 0 */
 
@@ -267,8 +283,8 @@ int main(void)
   MX_UART5_Init();
   MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
-  HAL_UART_Receive_IT(&huart5, UBuffer, sizeof(UBuffer));
-  HAL_UART_Receive_IT(&huart1, UBuffer, sizeof(UBuffer));
+  // HAL_UART_Receive_IT(&huart5, UBuffer, sizeof(UBuffer));
+  // HAL_UART_Receive_IT(&huart1, UBuffer, sizeof(UBuffer));
   BSP_LCD_Init();
 	BSP_LCD_LayerDefaultInit(LCD_BACKGROUND_LAYER,LCD_FRAME_BUFFER);
 	BSP_LCD_LayerDefaultInit(LCD_FOREGROUND_LAYER,LCD_FRAME_BUFFER);
@@ -308,13 +324,13 @@ int main(void)
   char *p = buff;
   // esp8266
   // if(HAL_UART_Transmit(&huart5, "AT+CIPSTART=\"TCP\",\"192.168.10.1\",10000\r\n", 10, 100))
-  if(HAL_UART_Transmit(&huart5, "AT+CWMODE?\r\n", 10, 100))
-    printf("uart5 send error.\r\n");
-  HAL_Delay(1);
-  if(HAL_UART_Transmit(&huart5, "AT+CWMODE?\r\n", 10, 100))
-    printf("uart5 send error.\r\n");
-  HAL_UART_Receive(&huart5, buff, sizeof(buff), 1000);
-  printf("%s\r\n", buff);
+  // if(HAL_UART_Transmit(&huart5, "AT+CWMODE?\r\n", 10, 100))
+  //   printf("uart5 send error.\r\n");
+  // HAL_Delay(1);
+  // if(HAL_UART_Transmit(&huart5, "AT+CWMODE?\r\n", 10, 100))
+  //   printf("uart5 send error.\r\n");
+  // HAL_UART_Receive(&huart5, buff, sizeof(buff), 1000);
+  // printf("%s\r\n", buff);
   // while (p < (buff+1))
   // {
   //   *p = '\0';
@@ -330,8 +346,8 @@ int main(void)
 
 
   BSP_LCD_DisplayStringAtLine(0,(uint8_t *)"...           ");
-  if(HAL_UART_Transmit(&huart5, "AT+CWMODE?\r\n", 10, 100))
-    printf("uart5 send error.\r\n");
+  // if(HAL_UART_Transmit(&huart5, "AT+CWMODE?\r\n", 10, 100))
+  //   printf("uart5 send error.\r\n");
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -366,13 +382,15 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-
     char lcd_buf[14];
+    memset(buff, 0, sizeof(buff));
+    sprintf(buff, "IOT");
     // bh1750
     float lx;
     if (get_illuminance(&lx) != HAL_OK) {
       printf("bh1750 read failed.\r\n");
-      BSP_LCD_DisplayStringAtLine(0,"lux: error");
+      BSP_LCD_DisplayStringAtLine(0,"lux:       ");
+      sprintf(buff, "%slux:        \r\n", buff);
     }
     else {
       printf("光照度 ");
@@ -380,6 +398,7 @@ int main(void)
       memset(lcd_buf, 0, sizeof(lcd_buf));
       sprintf(lcd_buf, "lux: %d.%d%d", (int)lx, (int)((lx - (int)lx)*10), (int)((((lx - (int)lx)*10) - (int)((lx - (int)lx)*10))*10));
       BSP_LCD_DisplayStringAtLine(0,(uint8_t *)lcd_buf);
+      sprintf(buff, "%s%s\r\n", buff, lcd_buf);
     }
     /*调用Read_DHT11读取温湿度，若成功则输出该信息*/
     if( Read_DHT11(&DHT11_Data)==SUCCESS)
@@ -391,30 +410,84 @@ int main(void)
       memset(lcd_buf, 0, sizeof(lcd_buf));
       sprintf(lcd_buf, "Temp: %d.%dC",DHT11_Data.temp_int, DHT11_Data.temp_deci);
       BSP_LCD_DisplayStringAtLine(1,(uint8_t *)lcd_buf);
+      sprintf(buff, "%s%s\r\n", buff,lcd_buf);
       memset(lcd_buf, 0, sizeof(lcd_buf));
       sprintf(lcd_buf, "Humi: %d.%d%%",DHT11_Data.humi_int, DHT11_Data.humi_deci);
       BSP_LCD_DisplayStringAtLine(2,(uint8_t *)lcd_buf);
+      sprintf(buff, "%s%s\r\n", buff,lcd_buf);
     }
     else
     {
       printf("Read DHT11 ERROR!\r\n");
       // BSP_LCD_DisplayStringAtLine(1,"Temp: null");
       // BSP_LCD_DisplayStringAtLine(2,"Humi: null");
+      sprintf(buff, "%sTemp: null\r\nHumi: null\r\n", buff);
     }
 
-    HAL_Delay(6000);
-    // if(HAL_UART_Transmit(&huart5, "AT+CWMODE?\r\n", 10, 100))
-    //   printf("uart5 send error.\r\n");
-    // memset(buff, 0, sizeof(buff));
-    // HAL_UART_Receive(&huart5, buff, sizeof(buff), 1000);
-    // printf("%s\r\n", buff);
-
-    if (body_detect()) {
-      light_on();
+    if (light_check()) {
+      sprintf(buff, "%slight: ON \r\n", buff);
+      BSP_LCD_DisplayStringAtLine(3, "Light: ON ");
     }
     else {
-      light_off();
+      sprintf(buff, "%slight: OFF\r\n", buff);
+      BSP_LCD_DisplayStringAtLine(3, "Light: OFF");
     }
+
+    char net_status[64];
+    if(HAL_UART_Transmit(&huart5, "AT\r\n", 5, 100))
+      printf("uart5 send error.\r\n");
+    HAL_Delay(3);
+    HAL_UART_Receive(&huart5, net_status, sizeof(net_status), 1000);
+    HAL_Delay(2);
+    // if(HAL_UART_Transmit(&huart5, "AT+CWJAP?\r\n", 12, 100))
+    //   printf("uart5 send error.\r\n");
+    // HAL_Delay(3);
+    // memset(net_status, 0, sizeof(net_status));
+    // HAL_UART_Receive(&huart5, net_status, sizeof(net_status), 1000);
+    // printf("WiFi Check:%s\r\n", net_status);
+    // if (strstr(net_status, "+CWJAP:\"") >= 0) {
+    //   BSP_LCD_DisplayStringAtLine(4, "WiFi: OK");
+    // } 
+    // else {
+    //   BSP_LCD_DisplayStringAtLine(4, "WiFi :  ");
+    // }
+    if(HAL_UART_Transmit(&huart5, "AT+CIPSTART=\"TCP\",\"154.201.3.19\",80\r\n", 38, 100))
+      printf("uart5 send error.\r\n");
+    HAL_Delay(3);
+    memset(net_status, 0, sizeof(net_status));
+    HAL_UART_Receive(&huart5, net_status, sizeof(net_status), 3000);
+    printf("Connect Server:%s\r\n", net_status);
+    if (strstr(net_status, "CONNECT") >= 0) {
+      BSP_LCD_DisplayStringAtLine(5, "Server: OK");
+    } 
+    else {
+      BSP_LCD_DisplayStringAtLine(5, "Server:   ");
+    }
+    if(HAL_UART_Transmit(&huart5, "AT+CIPSEND=53\r\n", 16, 100))
+      printf("uart5 send error.\r\n");
+    HAL_Delay(2);
+    if(HAL_UART_Transmit(&huart5, buff, 53, 100))
+      printf("uart5 send error.\r\n");
+    memset(buff, 0, sizeof(buff));
+    HAL_UART_Receive(&huart5, buff, sizeof(buff), 3000);
+    printf("%s\r\n", buff);
+    HAL_Delay(2);
+    if(HAL_UART_Transmit(&huart5, "AT\r\n", 3, 100))
+      printf("uart5 send error.\r\n");
+    if(HAL_UART_Transmit(&huart5, "AT+CIPCLOSE\r\n", 14, 100))
+      printf("uart5 send error.\r\n");
+    
+    if(strstr(buff, "lon") >= 0) light_on();
+    else if(strstr(buff, "loff") >= 0) light_off();
+
+    HAL_Delay(800);
+
+    // if (body_detect()) {
+    //   light_on();
+    // }
+    // else {
+    //   light_off();
+    // }
   }
   /* USER CODE END 3 */
 }
